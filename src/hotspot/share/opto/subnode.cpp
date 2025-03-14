@@ -53,11 +53,14 @@ Node* SubNode::Identity(PhaseGVN* phase) {
   assert(in(1) != this, "Must already have called Value");
   assert(in(2) != this, "Must already have called Value");
 
-  // Remove double negation
   const Type *zero = add_id();
+
+  // Remove double negation if it is not a floating point number
   if( phase->type( in(1) )->higher_equal( zero ) &&
       in(2)->Opcode() == Opcode() &&
-      phase->type( in(2)->in(1) )->higher_equal( zero ) ) {
+      phase->type( in(2)->in(1) )->higher_equal( zero ) &&
+      phase->type( in(2)->in(2) )->isa_double() == nullptr &&
+      phase->type( in(2)->in(2) )->isa_float() == nullptr) {
     return in(2)->in(2);
   }
 
