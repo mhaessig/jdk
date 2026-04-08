@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1998, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -190,7 +190,7 @@ DirectiveSet* CompilerDirectives::get_for(AbstractCompiler *comp) {
     return _c2_store;
   } else {
     // use c1_store as default
-    assert(comp->is_c1() || comp->is_jvmci(), "");
+    assert(comp->is_c1(), "");
     return _c1_store;
   }
 }
@@ -670,9 +670,9 @@ void DirectivesStack::init() {
   char str[] = "*.*";
   const char* error_msg = nullptr;
   _default_directives->add_match(str, error_msg);
-#if defined(COMPILER1) || INCLUDE_JVMCI
+#ifdef COMPILER1
   _default_directives->_c1_store->EnableOption = true;
-#endif
+#endif // COMPILER1
 #ifdef COMPILER2
   if (CompilerConfig::is_c2_enabled()) {
     _default_directives->_c2_store->EnableOption = true;
