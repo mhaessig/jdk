@@ -89,9 +89,6 @@
 #include "utilities/growableArray.hpp"
 #include "utilities/preserveException.hpp"
 #include "utilities/utf8.hpp"
-#if INCLUDE_JVMCI
-#include "jvmci/jvmciJavaClasses.hpp"
-#endif
 
 #define DECLARE_INJECTED_FIELD(klass, name, signature, may_be_java)           \
   { VM_CLASS_ID(klass), VM_SYMBOL_ENUM_NAME(name##_name), VM_SYMBOL_ENUM_NAME(signature), may_be_java },
@@ -3153,23 +3150,6 @@ void java_lang_StackTraceElement::decode_file_and_line(Handle java_class,
   }
   line_number = Backtrace::get_line_number(method(), bci);
 }
-
-#if INCLUDE_JVMCI
-void java_lang_StackTraceElement::decode(const methodHandle& method, int bci,
-                                         Symbol*& filename, int& line_number, TRAPS) {
-  ResourceMark rm(THREAD);
-  HandleMark hm(THREAD);
-
-  filename = nullptr;
-  line_number = -1;
-
-  oop source_file;
-  int version = method->constants()->version();
-  InstanceKlass* holder = method->method_holder();
-  Handle java_class(THREAD, holder->java_mirror());
-  decode_file_and_line(java_class, holder, version, method, bci, filename, source_file, line_number, CHECK);
-}
-#endif // INCLUDE_JVMCI
 
 // java_lang_ClassFrameInfo
 

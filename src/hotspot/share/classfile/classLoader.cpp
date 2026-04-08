@@ -1432,20 +1432,6 @@ char* ClassLoader::lookup_vm_options() {
   return options;
 }
 
-bool ClassLoader::is_module_observable(const char* module_name) {
-  assert(JImageOpen != nullptr, "jimage library should have been opened");
-  if (JImage_file == nullptr) {
-    struct stat st;
-    const char *path = get_exploded_module_path(module_name, true);
-    bool res = os::stat(path, &st) == 0;
-    FREE_C_HEAP_ARRAY(char, path);
-    return res;
-  }
-  jlong size;
-  const char *jimage_version = get_jimage_version_string();
-  return (*JImageFindResource)(JImage_file, module_name, jimage_version, "module-info.class", &size) != 0;
-}
-
 jlong ClassLoader::classloader_time_ms() {
   return UsePerfData ?
     Management::ticks_to_ms(_perf_accumulated_time->get_value()) : -1;
