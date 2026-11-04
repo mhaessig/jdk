@@ -3299,11 +3299,14 @@ void MacroAssembler::test_field_is_flat(Register flags, Label& is_flat) {
   bne(CR0, is_flat);
 }
 
-void MacroAssembler::test_oop_prototype_bit(Register oop, Register temp_reg, int32_t test_bit, bool jmp_set,
-                                            Label& jmp_label, bool maybe_far) {
+void MacroAssembler::cmp_oop_prototype_bit(Register oop, Register temp_reg, int32_t test_bit) {
   // load mark word
   ld(temp_reg, oopDesc::mark_offset_in_bytes(), oop);
   andi_(R0, temp_reg, test_bit);
+}
+
+static void MacroAssembler::test_oop_prototype_bit(Register oop, Register temp_reg, int32_t test_bit, bool jmp_set,
+                                                   Label& jmp_label, bool maybe_far) {
   if (maybe_far) {
     bc_far_optimized(jmp_set ? Assembler::bcondCRbiIs0 : Assembler::bcondCRbiIs1,
                      bi0(CR0, Assembler::equal), jmp_label);

@@ -262,7 +262,7 @@ class MacroAssembler: public Assembler {
 
   void test_markword_is_value_type(Register markword, Label& is_value_type);
   void test_oop_is_not_value_type(Register object, Register tmp, Label& not_value_type, bool can_be_null = true);
-  void test_oop_prototype_bit(Register oop, Register temp_reg, int32_t tst_bit, bool jmp_set, Label& jmp_label);
+  void cmp_oop_prototype_bit(Register oop, Register temp_reg, int32_t tst_bit);
   void test_flat_array_oop(Register klass, Register temp_reg, Label& is_flat_array);
   void test_null_free_array_oop(Register oop, Register temp_reg, Label& is_null_free_array);
   void test_non_flat_array_oop(Register oop, Register temp_reg, Label&is_non_flat_array);

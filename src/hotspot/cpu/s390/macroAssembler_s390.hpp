@@ -874,7 +874,7 @@ class MacroAssembler: public Assembler {
 
   // Check oops for special arrays, i.e. flat arrays and/or null-free arrays.
   // temp_reg is clobbered; oop and temp_reg must be distinct.
-  void test_oop_prototype_bit(Register oop, Register temp_reg, int32_t test_bit, bool jmp_set, Label& jmp_label);
+  void cmp_oop_prototype_bit(Register oop, Register temp_reg, int32_t test_bit);
   void test_flat_array_oop(Register oop, Register temp_reg, Label& is_flat_array);
   void test_non_flat_array_oop(Register oop, Register temp_reg, Label& is_non_flat_array);
   void test_null_free_array_oop(Register oop, Register temp_reg, Label& is_null_free_array);

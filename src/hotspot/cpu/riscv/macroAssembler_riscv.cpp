@@ -3973,36 +3973,36 @@ void MacroAssembler::test_oop_is_not_value_type(Register object, Register tmp, L
   bne(tmp, t0, not_value_type);
 }
 
-void MacroAssembler::test_oop_prototype_bit(Register oop, Register temp_reg, int32_t tst_bit, bool jmp_set, Label& jmp_label) {
+void MacroAssembler::cmp_oop_prototype_bit(Register oop, Register temp_reg, int32_t tst_bit) {
+  assert(bit_pos < 64, "invalid bit range");
   assert_different_registers(temp_reg, t0);
   // load mark word
   ld(temp_reg, Address(oop, oopDesc::mark_offset_in_bytes()));
   andi(temp_reg, temp_reg, tst_bit);
-  if (jmp_set) {
-    bnez(temp_reg, jmp_label, /* is_far */ true);
-  } else {
-    beqz(temp_reg, jmp_label, /* is_far */ true);
-  }
 }
 
 void MacroAssembler::test_flat_array_oop(Register oop, Register temp_reg, Label& is_flat_array) {
   assert(UseArrayFlattening, "should not be used without array flattening enabled");
-  test_oop_prototype_bit(oop, temp_reg, markWord::flat_array_bit_in_place, true, is_flat_array);
+  cmp_oop_prototype_bit(oop, temp_reg, markWord::flat_array_bit_in_place);
+  bnez(temp_reg, is_flat_array, /* is_far */ true);
 }
 
 void MacroAssembler::test_null_free_array_oop(Register oop, Register temp_reg, Label& is_null_free_array) {
   assert(Arguments::is_valhalla_enabled(), "should not be used without value types enabled");
-  test_oop_prototype_bit(oop, temp_reg, markWord::null_free_array_bit_in_place, true, is_null_free_array);
+  cmp_oop_prototype_bit(oop, temp_reg, markWord::null_free_array_bit_in_place);
+  bnez(temp_reg, is_null_free_array, /* is_far */ true);
 }
 
 void MacroAssembler::test_non_flat_array_oop(Register oop, Register temp_reg, Label&is_non_flat_array) {
   assert(UseArrayFlattening, "should not be used without array flattening enabled");
-  test_oop_prototype_bit(oop, temp_reg, markWord::flat_array_bit_in_place, false, is_non_flat_array);
+  cmp_oop_prototype_bit(oop, temp_reg, markWord::flat_array_bit_in_place);
+  beqz(temp_reg, is_non_flat_array, /* is_far */ true);
 }
 
 void MacroAssembler::test_non_null_free_array_oop(Register oop, Register temp_reg, Label&is_non_null_free_array) {
   assert(Arguments::is_valhalla_enabled(), "should not be used without value types enabled");
-  test_oop_prototype_bit(oop, temp_reg, markWord::null_free_array_bit_in_place, false, is_non_null_free_array);
+  cmp_oop_prototype_bit(oop, temp_reg, markWord::null_free_array_bit_in_place);
+  beqz(temp_reg, is_non_null_free_array, /* is_far */ true);
 }
 
 void MacroAssembler::test_flat_array_layout(Register lh, Label& is_flat_array) {
