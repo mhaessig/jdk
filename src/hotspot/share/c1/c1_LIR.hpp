@@ -890,7 +890,6 @@ class    LIR_OpUpdateCRC32;
 class    LIR_OpLock;
 class    LIR_OpTypeCheck;
 class    LIR_OpFlattenedArrayCheck;
-class    LIR_OpFlattenedArrayCheckNew;
 class    LIR_OpNullFreeArrayCheck;
 class    LIR_OpSubstitutabilityCheck;
 class    LIR_OpCompareAndSwap;
@@ -999,9 +998,6 @@ enum LIR_Code {
   , begin_opFlattenedArrayCheck
     , lir_flat_array_check
   , end_opFlattenedArrayCheck
-  , begin_opFlattenedArrayCheckNew
-    , lir_flat_array_check_new
-  , end_opFlattenedArrayCheckNew
   , begin_opNullFreeArrayCheck
     , lir_null_free_array_check
   , end_opNullFreeArrayCheck
@@ -1156,7 +1152,6 @@ class LIR_Op: public CompilationResourceObj {
   virtual LIR_OpUpdateCRC32* as_OpUpdateCRC32() { return nullptr; }
   virtual LIR_OpTypeCheck* as_OpTypeCheck() { return nullptr; }
   virtual LIR_OpFlattenedArrayCheck* as_OpFlattenedArrayCheck() { return nullptr; }
-  virtual LIR_OpFlattenedArrayCheckNew* as_OpFlattenedArrayCheckNew() { return nullptr; }
   virtual LIR_OpNullFreeArrayCheck* as_OpNullFreeArrayCheck() { return nullptr; }
   virtual LIR_OpSubstitutabilityCheck* as_OpSubstitutabilityCheck() { return nullptr; }
   virtual LIR_OpCompareAndSwap* as_OpCompareAndSwap() { return nullptr; }
@@ -1594,26 +1589,6 @@ public:
 
   virtual void emit_code(LIR_Assembler* masm);
   virtual LIR_OpFlattenedArrayCheck* as_OpFlattenedArrayCheck() { return this; }
-  virtual void print_instr(outputStream* out) const PRODUCT_RETURN;
-};
-
-// LIR_OpFlattenedArrayCheckNew
-class LIR_OpFlattenedArrayCheckNew: public LIR_Op {
- friend class LIR_OpVisitState;
-
- private:
-  LIR_Opr       _array;
-  LIR_Opr       _tmp;
-  Label&        _slow_path;
-public:
-  LIR_OpFlattenedArrayCheckNew(LIR_Opr array, LIR_Opr tmp, Label& slow_path);
-  LIR_Opr array() const                          { return _array;         }
-  LIR_Opr tmp() const                            { return _tmp;           }
-  // The slow path is taken when the array is flat.
-  Label&  slow_path() const                      { return _slow_path;     }
-
-  virtual void emit_code(LIR_Assembler* masm);
-  virtual LIR_OpFlattenedArrayCheckNew* as_OpFlattenedArrayCheckNew() { return this; }
   virtual void print_instr(outputStream* out) const PRODUCT_RETURN;
 };
 

@@ -2149,9 +2149,13 @@ void LIRGenerator::check_flat_array(LIR_Opr array, CodeStub* slow_path) {
   __ check_flat_array(array, tmp, slow_path);
 }
 
-void LIRGenerator::check_flat_array_new(LIR_Opr array, BlockBegin* taken, BlockBegin* not_taken) {
-  LIR_Opr tmp = new_register(T_METADATA);
-  __ check_flat_array_new(array, tmp, *taken->label()); // Takes care of the conditional jump to the slow path.
+void LIRGenerator::check_flat_array_new(LIRItem& array, CodeEmitInfo* info, BlockBegin* taken, BlockBegin* not_taken, bool taken_is_flat) {
+  LIR_Opr mark_word = new_register(T_INT);
+  __ load(new LIR_Address(array.result(), oopDesc::mark_offset_in_bytes(), T_INT), mark_word, info);
+  __ logical_and(mark_word, LIR_OprFact::intConst(markWord::flat_array_bit_in_place), mark_word);
+  const LIR_Condition condition = taken_is_flat ? lir_cond_notEqual : lir_cond_equal;
+  __ cmp(condition, mark_word, LIR_OprFact::intConst(0));
+  __ branch(condition, taken);
   __ jump(not_taken);
 }
 
@@ -2286,10 +2290,17 @@ void LIRGenerator::do_StoreIndexed(StoreIndexed* x) {
   } else {
     if (UseNewCode) {
       if (needs_flat_array_store_check(x)) {
-        LateControlFlowDiamond lcfd(this, x, x->state_before()->bci(), x->state_before(),
-                                    [&](BlockBegin* taken, BlockBegin* not_taken) { check_flat_array_new(array.result(), taken, not_taken); });
+        LateControlFlow lcf(this, x, x->state_before()->bci(), x->state_before());
+        // First, we need to setup our new basic blocks.
+        BlockBegin* taken = lcf.make_late_block();
+        BlockBegin* not_taken = lcf.make_late_block();
+
+        // Then, we emit the branch causing our late control flow.
+        check_flat_array_new(array, lcf.info(), taken, not_taken);
+        // Now, finalize origin so we can emit LIR for our new blocks.
+        lcf.finalize_origin();
         {
-          LateControlFlowDiamond::NotTakenBlock not_taken(lcfd);
+          LateControlFlow::Block block(lcf, not_taken, new BlockList(1, lcf.origin()), new BlockList(1, lcf.continuation()));
 
           LIRItem array(x->array(), this);
           LIRItem value(x->value(), this);
@@ -2299,8 +2310,10 @@ void LIRGenerator::do_StoreIndexed(StoreIndexed* x) {
           index.load_nonconstant();
 
           store_array_helper(x, array, value, index, range_check_info, null_check_info);
+
+          __ jump(lcf.continuation());
         } {
-          LateControlFlowDiamond::TakenBlock taken(lcfd);
+          LateControlFlow::Block block(lcf, taken, new BlockList(1, lcf.origin()), new BlockList(1, lcf.continuation()));
 
           LIRItem array(x->array(), this);
           LIRItem value(x->value(), this);
@@ -2309,9 +2322,10 @@ void LIRGenerator::do_StoreIndexed(StoreIndexed* x) {
           value.load_item();
           index.load_item();
 
-          StoreFlattenedArrayStub* slow_path = new StoreFlattenedArrayStub(array.result(), index.result(), value.result(), state_for(x, lcfd.state_before()));
+          StoreFlattenedArrayStub* slow_path = new StoreFlattenedArrayStub(array.result(), index.result(), value.result(), state_for(x, lcf.state_before()));
           __ jump(slow_path);
           __ branch_destination(slow_path->continuation());
+          __ jump(lcf.continuation());
         }
       } else {
         store_array_helper(x, array, value, index, range_check_info, null_check_info);
