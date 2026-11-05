@@ -1936,8 +1936,22 @@ BASE(BlockEnd, StateSplit)
 LEAF(LateBlockEnd, BlockEnd)
  // Late blocks must only be created by the late control flow machinery.
  friend class LateControlFlowDiamond;
+ friend class LateControlFlow;
  private:
   BlockBegin* _continuation;
+
+  LateBlockEnd(ValueStack* state_before, BlockBegin* continuation)
+  : BlockEnd(illegalType, state_before, false)
+  , _continuation(continuation) {
+    set_state(state_before);
+  }
+
+  void add_sux(BlockBegin* succ) {
+    if (sux() == nullptr) {
+      set_sux(new BlockList(1));
+    }
+    sux()->append(succ);
+  }
 
   LateBlockEnd(ValueStack* state_before, BlockBegin* sux, BlockBegin* continuation)
   : BlockEnd(illegalType, state_before, false)

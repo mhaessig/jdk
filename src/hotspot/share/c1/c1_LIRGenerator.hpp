@@ -217,6 +217,39 @@ class LateControlFlowDiamond: public StackObj {
   };
 };
 
+class LateControlFlow: public StackObj {
+ private:
+  LIRGenerator* _gen;
+  Instruction*  _instr;
+  int           _bci;
+  ValueStack*   _state_before;
+  CodeEmitInfo* _info;
+  BlockBegin*   _origin;
+  BlockBegin*   _continuation;
+
+ public:
+  BlockBegin* origin()       const { return _origin; }
+  BlockBegin* continuation() const { return _continuation; }
+  int         bci()          const { return _bci; }
+  ValueStack* state_before() const { return _state_before; }
+  CodeEmitInfo* info()       const { return _info; }
+
+  BlockBegin* make_late_block();
+  void        finalize_origin();
+
+  explicit LateControlFlow(LIRGenerator* gen, Instruction* instr, int bci, ValueStack* state_before);
+  ~LateControlFlow();
+
+  class Block: public StackObj {
+   private:
+    LateControlFlow& _lcf;
+    BlockBegin*      _block;
+   public:
+    explicit Block(LateControlFlow& lcf, BlockBegin* block, BlockList* preds, BlockList* sux);
+    ~Block();
+  };
+};
+
 
 // only the classes below belong in the same file
 class LIRGenerator: public InstructionVisitor, public BlockClosure {

@@ -25,7 +25,9 @@
 #include "c1/c1_Compilation.hpp"
 #include "c1/c1_Defs.hpp"
 #include "c1/c1_FrameMap.hpp"
+#include "c1/c1_IR.hpp"
 #include "c1/c1_Instruction.hpp"
+#include "c1/c1_LIR.hpp"
 #include "c1/c1_LIRAssembler.hpp"
 #include "c1/c1_LIRGenerator.hpp"
 #include "c1/c1_ValueStack.hpp"
@@ -42,7 +44,9 @@
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/c1/barrierSetC1.hpp"
 #include "oops/klass.inline.hpp"
+#include "oops/markWord.hpp"
 #include "oops/methodCounters.hpp"
+#include "oops/oop.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/sharedRuntime.hpp"
@@ -435,6 +439,108 @@ LateControlFlowDiamond::TakenBlock::~TakenBlock() {
 
   _lcfd._gen->set_block(nullptr);
   _lcfd._gen->block_do_epilog(_lcfd._taken);
+}
+
+BlockBegin* LateControlFlow::make_late_block() {
+  BlockBegin* block = new BlockBegin(bci());
+  block->set_state_before(state_before());
+  block->set(BlockBegin::late_block_flag);
+  return block;
+}
+
+LateControlFlow::LateControlFlow(LIRGenerator* gen, Instruction* instr, int bci, ValueStack* state_before)
+  : _gen(gen)
+  , _instr(instr)
+  , _bci(bci)
+  , _state_before(state_before)
+  , _info(gen->state_for(instr, state_before))
+  , _origin(gen->block())
+  , _continuation(make_late_block()) {
+  assert(!_gen->compilation()->bailed_out(), "must check for bailiout before LateControlFlowDiamond");
+  assert(_instr->is_pinned(), "LateControlFlowDiamond can only insert blocks for pinned instructions");
+
+  _gen->compilation()->set_has_late_control_flow(true);
+
+  // Move the remaining instructions in origin to continuation.
+  // Instruction::set_next also sets the block of this for the argument.
+  _continuation->set_next(_instr->next());
+  for (Instruction* i = _instr->next(); i->next() != nullptr; i = i->next()) {
+    i->set_next(i->next());
+  }
+  _continuation->set_end(_origin->end());
+
+  _origin->set_end(new LateBlockEnd(_state_before, _continuation));
+  _instr->set_next(_origin->end(), _bci);
+
+  // Because we moved some instructions from origin to continuation some
+  // exceptional edges may not belong to origin anymore. Leaving them will
+  // lead to unexpected live vregs during register allocation. To fix this
+  // we remove all excepional edges from origin and add them back by scanning
+  // all emitted LIR instructions for the needed exception handlers and add
+  // those back in block_do_epilog() as for all late blocks.
+  _origin->set(BlockBegin::late_block_flag);
+  if (_gen->compilation()->has_exception_handlers()) {
+    for (int i = 0; i < _origin->number_of_exception_handlers(); i++) {
+      if (BlockBegin* handler = _origin->exception_handler_at(i); handler != nullptr) {
+        handler->remove_predecessor(_origin);
+      }
+    }
+    _origin->clear_exception_handlers();
+  }
+}
+
+void LateControlFlow::finalize_origin() {
+  assert(_gen->block() == _origin, "someone messed with he LIR generation");
+  _gen->set_block(nullptr);
+  _gen->block_do_epilog(_origin);
+}
+
+LateControlFlow::Block::Block(LateControlFlow& lcf, BlockBegin* block, BlockList* preds, BlockList* sux)
+  : _lcf(lcf)
+  , _block(block) {
+  assert(block->is_set(BlockBegin::late_block_flag) && block->end() == nullptr, "only use fresh late blocks");
+
+  // Hook up all out-edges.
+  block->set_end(new LateBlockEnd(_lcf.state_before(), _lcf.continuation()));
+  block->set_next(block->end(), _lcf.bci());
+  block->end()->as_LateBlockEnd()->set_sux(sux);
+  for (int i = 0; i < sux->length(); i++) {
+    BlockBegin* succ = sux->at(i);
+    if (!succ->is_predecessor(block)) {
+      succ->add_predecessor(block);
+    }
+  }
+
+  // Hook up all in-edges.
+  for (int i = 0; i < preds->length(); i++) {
+    BlockBegin* pred = preds->at(i);
+    assert(pred != nullptr, "expected block");
+    assert(pred->end()->as_LateBlockEnd() != nullptr, "must only append to late block end");
+    if (!block->is_predecessor(pred)) {
+      block->add_predecessor(pred);
+    }
+    if (!pred->end()->is_sux(block)) {
+      pred->end()->as_LateBlockEnd()->add_sux(block);
+    }
+  }
+
+  // Set up LIR generation in `block`.
+  assert(_lcf._gen->block() == nullptr, "LIR generation must be reset at late control flow block start");
+  _lcf._gen->block_do_prolog(block);
+  _lcf._gen->set_block(block);
+}
+
+LateControlFlow::Block::~Block() {
+  assert(_lcf._gen->block() == _block, "someone messed with the LIR generation");
+  _lcf._gen->set_block(nullptr);
+  _lcf._gen->block_do_epilog(_block);
+}
+
+LateControlFlow::~LateControlFlow() {
+  assert(_gen->block() == nullptr, "someone messed with the LIR generation");
+  _gen->block_do_prolog(_continuation);
+  _gen->set_block(_continuation);
+  // Now, LIR generation continues normally in the continuation block.
 }
 
 static void add_handler_edges(BlockBegin* block, const XHandlers* handlers) {
